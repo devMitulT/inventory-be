@@ -1,3 +1,4 @@
+const { base } = require("../../models/notificationModel");
 const Product = require("../../models/productModel");
 
 const isValidSKU = (sku) => /^[A-Z0-9\-_]{3,40}$/.test(sku);
@@ -56,17 +57,13 @@ const updateProduct = async (req, res) => {
         .json({ message: "Price must be a valid positive number" });
     }
 
-    const parts = sku.split("-");
-    parts.pop();
-    const baseSKU = parts.join("-").toUpperCase();
-
-    if (!isValidSKU(baseSKU)) {
+    if (!isValidSKU(sku)) {
       return res.status(400).json({
         message:
           "SKU must be alphanumeric (A-Z, 0-9, dashes, underscores), 3–40 characters",
       });
     }
-    const finalSKU = `${baseSKU}-${colour.toUpperCase()}`;
+    const finalSKU = `${sku}-${colour.toUpperCase()}`;
 
     const duplicate = await Product.findOne({
       sku: finalSKU,

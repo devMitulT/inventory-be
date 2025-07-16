@@ -11,7 +11,7 @@ const getOrderById = async (req, res) => {
       .populate("customer")
       .populate(
         "organizationId",
-        "organizationName ownerName description email logo address contactNumber billingRules"
+        "organizationName ownerName description email logo address contactNumber billingRules gstNumber"
       );
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
