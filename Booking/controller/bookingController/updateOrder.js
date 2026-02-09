@@ -18,8 +18,8 @@ const updateOrder = async (req, res) => {
       phoneNumberPrimary,
       phoneNumberSecondary,
       gstRate,
+      gstNumber
     } = req.body;
-
     if (
       !products ||
       !Array.isArray(products) ||
@@ -57,6 +57,14 @@ const updateOrder = async (req, res) => {
       return res
         .status(400)
         .json({ message: "Invalid secondary phone number." });
+    }
+
+    if(gstNumber && gstNumber.trim() !== "" && gstNumber.length !== 15){
+      await session.abortTransaction();
+      session.endSession();
+      return res
+        .status(400)
+        .json({ message: "GST number must be a valid 15-digit number" });
     }
 
     const capitalizeName = (name) => {
@@ -176,6 +184,7 @@ const updateOrder = async (req, res) => {
         customerName: capitalizeName(customerName),
         phoneNumberPrimary,
         phoneNumberSecondary,
+        gstNumber
       },
       { session }
     );

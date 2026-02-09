@@ -37,6 +37,15 @@ const customerSchema = mongoose.Schema(
           'Secondary phone number cannot be the same as primary phone number',
       },
     },
+    gstNumber: {
+  type: String,
+  trim: true,
+  uppercase: true,
+  match: [
+    /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/,
+    "GST number must be a valid 15-character GSTIN",
+  ],
+}
   },
   {
     timestamps: true,
