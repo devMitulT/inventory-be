@@ -17,6 +17,7 @@ const createOrder = async (req, res) => {
       phoneNumberSecondary,
       amount,
       gstRate,
+      gstNumber
     } = req.body;
 
     if (
@@ -65,6 +66,14 @@ const createOrder = async (req, res) => {
         .json({ message: "Invalid secondary phone number." });
     }
 
+    if(gstNumber && gstNumber.trim() !== "" && gstNumber.length !== 15){
+      await session.abortTransaction();
+      session.endSession();
+      return res
+        .status(400)
+        .json({ message: "GST number must be a valid 15-digit number" });
+    }
+
     // Capitalize helper
     const capitalizeName = (name) => {
       return name
@@ -83,10 +92,12 @@ const createOrder = async (req, res) => {
         customerName: capitalizeName(customerName),
         phoneNumberPrimary,
         phoneNumberSecondary,
+        gstNumber
       });
     } else {
       customer.customerName = capitalizeName(customerName);
       customer.phoneNumberSecondary = phoneNumberSecondary;
+      customer.gstNumber = gstNumber
     }
     await customer.save({ session });
 

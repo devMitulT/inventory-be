@@ -52,6 +52,7 @@ const productSchema = mongoose.Schema(
     thresholdStock: {
       type: Number,
       required: [true, "Threshold stock is required"],
+      default:0
     },
     measurementType: {
       type: String,
