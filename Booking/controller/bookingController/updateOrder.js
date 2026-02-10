@@ -18,7 +18,8 @@ const updateOrder = async (req, res) => {
       phoneNumberPrimary,
       phoneNumberSecondary,
       gstRate,
-      gstNumber
+      gstNumber,
+      discountAmount
     } = req.body;
     if (
       !products ||
@@ -65,6 +66,12 @@ const updateOrder = async (req, res) => {
       return res
         .status(400)
         .json({ message: "GST number must be a valid 15-digit number" });
+    }
+    
+    if (discountAmount < 0) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "Discount amount must be positive." });
     }
 
     const capitalizeName = (name) => {
@@ -197,6 +204,7 @@ const updateOrder = async (req, res) => {
         notes,
         amount,
         gstRate,
+        discountAmount
       },
       { session, new: true }
     );

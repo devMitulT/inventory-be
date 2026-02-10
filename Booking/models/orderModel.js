@@ -41,6 +41,11 @@ const orderSchema = mongoose.Schema(
       default: 0,
       min: [0, "Amount cannot be negative"],
     },
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: [0, "Discount amount cannot be negative"],
+    },
     organizationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Organization",
