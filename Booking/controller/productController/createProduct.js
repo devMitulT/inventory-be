@@ -4,6 +4,12 @@ const isValidSKU = (sku) => /^[A-Z0-9\-_]{3,40}$/.test(sku);
 const isValidName = (name) => /^[\w\s\-(),.&']{3,100}$/.test(name);
 const isValidDescription = (desc) => desc.length >= 10 && desc.length <= 1000;
 
+const MEN_SIZES = ["32", "34", "36", "38", "40", "42", "44"];
+const WOMEN_SIZES = ["FREE", "XS", "S", "M", "L", "XL", "XXL"];
+
+const capitalize = (val) =>
+  val.charAt(0).toUpperCase() + val.slice(1).toLowerCase();
+
 const createProduct = async (req, res) => {
   try {
     const {
@@ -12,104 +18,130 @@ const createProduct = async (req, res) => {
       perUnitCost,
       sku,
       stock,
-      measurementType,
       thresholdStock,
-      colour,
+      measurementType,
+      colour = [],
+      size = [],
+      gender,
     } = req.body;
-
     if (
       !name ||
       !description ||
       !perUnitCost ||
       !sku ||
       !stock ||
-      !measurementType ||
-      !thresholdStock ||
-      !colour
+      !measurementType
     ) {
-      return res.status(400).json({ message: "All fields are required" });
+      return res.status(400).json({ message: "All base fields are required" });
+    }
+
+    if (!["meter", "piece"].includes(measurementType)) {
+      return res.status(400).json({ message: "Invalid measurement type" });
+    }
+
+    if (measurementType === "meter" && (!Array.isArray(colour) || !colour.length)) {
+      return res.status(400).json({ message: "Colour is required for meter type" });
+    }
+
+    if (measurementType === "piece") {
+      if (!gender || !["men", "women"].includes(gender)) {
+        return res.status(400).json({ message: "Gender is required for piece type" });
+      }
+
+      if (!Array.isArray(size) || !size.length) {
+        return res.status(400).json({ message: "Size is required for piece type" });
+      }
     }
 
     if (!isValidName(name)) {
-      return res.status(400).json({
-        message: "Invalid product name format or length (3–100 characters )",
-      });
+      return res.status(400).json({ message: "Invalid product name" });
     }
 
     if (!isValidDescription(description)) {
-      return res.status(400).json({
-        message: "Description must be between 10 and 1000 characters",
-      });
+      return res.status(400).json({ message: "Invalid description length" });
     }
 
     if (Number(stock) < Number(thresholdStock)) {
       return res.status(400).json({
-        message: "Threshold Stock must be less then Stock count",
-      });
-    }
-
-    const baseSKU = sku.toUpperCase();
-    if (!isValidSKU(baseSKU)) {
-      return res.status(400).json({
-        message:
-          "SKU must be alphanumeric (A-Z, 0-9, dashes, underscores), 3–40 characters",
+        message: "Threshold stock must be less than stock",
       });
     }
 
     if (isNaN(perUnitCost) || Number(perUnitCost) < 0) {
-      return res
-        .status(400)
-        .json({ message: "Price must be a valid positive number" });
+      return res.status(400).json({ message: "Invalid per unit cost" });
     }
 
-    const capitalizeName = (name) => {
-      return name
-        .split(" ")
-        .map(
-          (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-        )
-        .join(" ");
-    };
+    const baseSKU = sku.toUpperCase();
+    if (!isValidSKU(baseSKU)) {
+      return res.status(400).json({ message: "Invalid SKU format" });
+    }
+
+    if (measurementType === "piece") {
+      const allowedSizes = gender === "men" ? MEN_SIZES : WOMEN_SIZES;
+      const invalidSize = size.find((s) => !allowedSizes.includes(s.toUpperCase()));
+
+      if (invalidSize) {
+        return res.status(400).json({
+          message: `Invalid size '${invalidSize}' for ${gender}`,
+        });
+      }
+    }
 
     const createdProducts = [];
 
-    for (const s of colour) {
-      const finalSKU = `${baseSKU}-${capitalizeName(s)}`;
+    const variants =
+      measurementType === "meter"
+        ? colour.map((c) => ({
+            colour: capitalize(c),
+            skuSuffix: capitalize(c),
+          }))
+        : size.map((s) => ({
+            size: s.toUpperCase(),
+            skuSuffix: s.toUpperCase(),
+          }));
 
-      const existingSKU = await Product.findOne({
+    for (const variant of variants) {
+      const finalSKU = `${baseSKU}-${variant.skuSuffix}`;
+
+      const exists = await Product.findOne({
         sku: finalSKU,
         organizationId: req.decoded.ordId,
       });
 
-      if (existingSKU) {
+      if (exists) {
         return res.status(409).json({
-          message: ` SKU already exists: ${finalSKU} for this organization,`,
+          message: `SKU already exists: ${finalSKU}`,
         });
       }
 
-      const newProduct = new Product({
+      const product = new Product({
         name: name.toUpperCase(),
         description,
         perUnitCost: Number(perUnitCost),
         sku: finalSKU,
         stock,
         thresholdStock,
-        colour: capitalizeName(s),
         measurementType,
+        gender: measurementType === "piece" ? gender : undefined,
+        colour: variant.colour,
+        size: variant.size,
         organizationId: req.decoded.ordId,
       });
 
-      await newProduct.save();
-      createdProducts.push(newProduct);
+      await product.save();
+      createdProducts.push(product);
     }
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Products created successfully",
       data: createdProducts,
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Server error", error: error.message });
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
   }
 };
 

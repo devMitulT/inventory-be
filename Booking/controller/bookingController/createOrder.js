@@ -17,7 +17,8 @@ const createOrder = async (req, res) => {
       phoneNumberSecondary,
       amount,
       gstRate,
-      gstNumber
+      gstNumber,
+      discountAmount
     } = req.body;
 
     if (
@@ -27,7 +28,7 @@ const createOrder = async (req, res) => {
       !customerName ||
       !phoneNumberPrimary ||
       amount == null ||
-      gstRate == null
+      gstRate == null 
     ) {
       await session.abortTransaction();
       session.endSession();
@@ -38,6 +39,12 @@ const createOrder = async (req, res) => {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({ message: "Amount must be positive." });
+    }
+
+    if (discountAmount < 0) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "Discount amount must be positive." });
     }
 
     if (gstRate < 0 || gstRate > 100) {
@@ -168,6 +175,7 @@ const createOrder = async (req, res) => {
       organizationId: req.decoded.ordId,
       invoiceNumber,
       gstRate,
+      discountAmount
     });
 
     await order.save({ session });
