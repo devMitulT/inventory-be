@@ -4,197 +4,222 @@ const Customer = require("../../models/customerModel");
 const Product = require("../../models/productModel");
 const checkAndNotifyStock = require("../notification Controller/checkAndNotifyStock");
 
+
 const createOrder = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+ const session = await mongoose.startSession();
+ session.startTransaction();
 
-  try {
-    const {
-      products,
-      customerName,
-      notes,
-      phoneNumberPrimary,
-      phoneNumberSecondary,
-      amount,
-      gstRate,
-      gstNumber,
-      discountAmount
-    } = req.body;
 
-    if (
-      !products ||
-      !Array.isArray(products) ||
-      products.length === 0 ||
-      !customerName ||
-      !phoneNumberPrimary ||
-      amount == null ||
-      gstRate == null 
-    ) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ message: "Missing required fields." });
-    }
+ try {
+   const {
+     products,
+     customerName,
+     notes,
+     phoneNumberPrimary,
+     phoneNumberSecondary,
+     amount,
+     gstRate,
+     gstNumber,
+     discountAmount
+   } = req.body;
 
-    if (amount < 0) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ message: "Amount must be positive." });
-    }
 
-    if (discountAmount < 0) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ message: "Discount amount must be positive." });
-    }
+   if (
+     !products ||
+     !Array.isArray(products) ||
+     products.length === 0 ||
+     !customerName ||
+     !phoneNumberPrimary ||
+     amount == null ||
+     gstRate == null
+   ) {
+     await session.abortTransaction();
+     session.endSession();
+     return res.status(400).json({ message: "Missing required fields." });
+   }
 
-    if (gstRate < 0 || gstRate > 100) {
-      await session.abortTransaction();
-      session.endSession();
-      return res
-        .status(400)
-        .json({ message: "GST Rate must be between 0-100 %." });
-    }
 
-    if (phoneNumberPrimary < 1000000000 || phoneNumberPrimary > 9999999999) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ message: "Invalid primary phone number." });
-    }
+   if (amount < 0) {
+     await session.abortTransaction();
+     session.endSession();
+     return res.status(400).json({ message: "Amount must be positive." });
+   }
 
-    if (
-      phoneNumberSecondary &&
-      phoneNumberSecondary.trim() !== "" &&
-      (phoneNumberSecondary < 1000000000 || phoneNumberSecondary > 9999999999)
-    ) {
-      await session.abortTransaction();
-      session.endSession();
-      return res
-        .status(400)
-        .json({ message: "Invalid secondary phone number." });
-    }
 
-    if(gstNumber && gstNumber.trim() !== "" && gstNumber.length !== 15){
-      await session.abortTransaction();
-      session.endSession();
-      return res
-        .status(400)
-        .json({ message: "GST number must be a valid 15-digit number" });
-    }
+   if (discountAmount < 0) {
+     await session.abortTransaction();
+     session.endSession();
+     return res.status(400).json({ message: "Discount amount must be positive." });
+   }
 
-    // Capitalize helper
-    const capitalizeName = (name) => {
-      return name
-        .split(" ")
-        .map(
-          (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-        )
-        .join(" ");
-    };
 
-    let customer = await Customer.findOne({ phoneNumberPrimary }).session(
-      session
-    );
-    if (!customer) {
-      customer = new Customer({
-        customerName: capitalizeName(customerName),
-        phoneNumberPrimary,
-        phoneNumberSecondary,
-        gstNumber
-      });
-    } else {
-      customer.customerName = capitalizeName(customerName);
-      customer.phoneNumberSecondary = phoneNumberSecondary;
-      customer.gstNumber = gstNumber
-    }
-    await customer.save({ session });
+   if (gstRate < 0 || gstRate > 100) {
+     await session.abortTransaction();
+     session.endSession();
+     return res
+       .status(400)
+       .json({ message: "GST Rate must be between 0-100 %." });
+   }
 
-    const lastBooking = await Order.findOne({
-      organizationId: req.decoded.ordId,
-    })
-      .sort({ createdAt: -1 })
-      .session(session);
 
-    const invoiceNumber = lastBooking ? lastBooking.invoiceNumber + 1 : 1;
+   if (phoneNumberPrimary < 1000000000 || phoneNumberPrimary > 9999999999) {
+     await session.abortTransaction();
+     session.endSession();
+     return res.status(400).json({ message: "Invalid primary phone number." });
+   }
 
-    // Stock check and update
-    const stockConflicts = [];
 
-    for (const item of products) {
-      const { productId, unit, perUnitCost } = item;
+   if (
+     phoneNumberSecondary &&
+     phoneNumberSecondary.trim() !== "" &&
+     (phoneNumberSecondary < 1000000000 || phoneNumberSecondary > 9999999999)
+   ) {
+     await session.abortTransaction();
+     session.endSession();
+     return res
+       .status(400)
+       .json({ message: "Invalid secondary phone number." });
+   }
 
-      if (!productId || !unit || !perUnitCost) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).json({
-          message: "Each product must have productId, unit, and perUnitCost.",
-        });
-      }
 
-      const product = await Product.findOne({
-        _id: productId,
-        isDeleted: false,
-        organizationId: req.decoded.ordId,
-      }).session(session);
+   if(gstNumber && gstNumber.trim() !== "" && gstNumber.length !== 15){
+     await session.abortTransaction();
+     session.endSession();
+     return res
+       .status(400)
+       .json({ message: "GST number must be a valid 15-digit number" });
+   }
 
-      if (!product) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(404).json({
-          message: `Product with ID ${productId} not found.`,
-        });
-      }
 
-      if (product.stock < unit) {
-        stockConflicts.push({
-          productId,
-          available: product.stock,
-          required: unit,
-        });
-      } else {
-        product.stock -= unit;
-        await product.save({ session });
-        await checkAndNotifyStock(product, session);
-      }
-    }
+   // Capitalize helper
+   const capitalizeName = (name) => {
+     return name
+       .split(" ")
+       .map(
+         (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+       )
+       .join(" ");
+   };
 
-    if (stockConflicts.length > 0) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({
-        message: "Some products have insufficient stock.",
-        conflicts: stockConflicts,
-      });
-    }
 
-    // Create order
-    const order = new Order({
-      products,
-      customer: customer._id,
-      notes,
-      amount,
-      organizationId: req.decoded.ordId,
-      invoiceNumber,
-      gstRate,
-      discountAmount
-    });
+   let customer = await Customer.findOne({ phoneNumberPrimary }).session(
+     session
+   );
+   if (!customer) {
+     customer = new Customer({
+       customerName: capitalizeName(customerName),
+       phoneNumberPrimary,
+       phoneNumberSecondary,
+       gstNumber
+     });
+   } else {
+     customer.customerName = capitalizeName(customerName);
+     customer.phoneNumberSecondary = phoneNumberSecondary;
+     customer.gstNumber = gstNumber
+   }
+   await customer.save({ session });
 
-    await order.save({ session });
 
-    await session.commitTransaction();
-    session.endSession();
+   const lastBooking = await Order.findOne({
+     organizationId: req.decoded.ordId,
+   })
+     .sort({ createdAt: -1 })
+     .session(session);
 
-    res.status(201).json({
-      message: "Order created successfully!",
-      data: order,
-    });
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    res.status(500).json({
-      message: "Internal Server Error",
-      error: error.message,
-    });
-  }
+
+   const invoiceNumber = lastBooking ? lastBooking.invoiceNumber + 1 : 1;
+
+
+   // Stock check and update
+   const stockConflicts = [];
+
+
+   for (const item of products) {
+     const { productId, unit, perUnitCost } = item;
+
+
+     if (!productId || !unit || !perUnitCost) {
+       await session.abortTransaction();
+       session.endSession();
+       return res.status(400).json({
+         message: "Each product must have productId, unit, and perUnitCost.",
+       });
+     }
+
+
+     const product = await Product.findOne({
+       _id: productId,
+       isDeleted: false,
+       organizationId: req.decoded.ordId,
+     }).session(session);
+
+
+     if (!product) {
+       await session.abortTransaction();
+       session.endSession();
+       return res.status(404).json({
+         message: `Product with ID ${productId} not found.`,
+       });
+     }
+
+
+     if (product.stock < unit) {
+       stockConflicts.push({
+         productId,
+         available: product.stock,
+         required: unit,
+       });
+     } else {
+       product.stock -= unit;
+       await product.save({ session });
+       await checkAndNotifyStock(product, session);
+     }
+   }
+
+
+   if (stockConflicts.length > 0) {
+     await session.abortTransaction();
+     session.endSession();
+     return res.status(400).json({
+       message: "Some products have insufficient stock.",
+       conflicts: stockConflicts,
+     });
+   }
+
+
+   // Create order
+   const order = new Order({
+     products,
+     customer: customer._id,
+     notes,
+     amount,
+     organizationId: req.decoded.ordId,
+     invoiceNumber,
+     gstRate,
+     discountAmount
+   });
+
+
+   await order.save({ session });
+
+
+   await session.commitTransaction();
+   session.endSession();
+
+
+   res.status(201).json({
+     message: "Order created successfully!",
+     data: order,
+   });
+ } catch (error) {
+   await session.abortTransaction();
+   session.endSession();
+   res.status(500).json({
+     message: "Internal Server Error",
+     error: error.message,
+   });
+ }
 };
+
 
 module.exports = { createOrder };
