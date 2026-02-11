@@ -14,6 +14,7 @@ const getProduct = async (req, res) => {
       organizationId: req.decoded.ordId,
       isDeleted: false,
     });
+    
 
     if (!product) {
       return res.status(400).json({ message: 'Product not found' });
