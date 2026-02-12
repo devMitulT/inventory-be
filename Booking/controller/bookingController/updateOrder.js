@@ -22,7 +22,8 @@ const updateOrder = async (req, res) => {
      gstRate,
      gstNumber,
      discountAmount,
-     discountType
+     discountType,
+     businessGstNumber
    } = req.body;
    if (
      !products ||
@@ -56,13 +57,20 @@ const updateOrder = async (req, res) => {
        .json({ message: "Invalid secondary phone number." });
    }
 
+   if(businessGstNumber && businessGstNumber.trim() !== "" && businessGstNumber.length !== 15){
+     await session.abortTransaction();
+     session.endSession();
+     return res
+       .status(400)
+       .json({ message: "Business GST number must be a valid 15-digit number" });
+   }
 
    if(gstNumber && gstNumber.trim() !== "" && gstNumber.length !== 15){
      await session.abortTransaction();
      session.endSession();
      return res
        .status(400)
-       .json({ message: "GST number must be a valid 15-digit number" });
+       .json({ message: "Customer GST number must be a valid 15-digit number" });
    }
 
    if (gstNumber && gstNumber.trim() !== "" && (!gstRate || gstRate === 0)) {
@@ -70,7 +78,7 @@ const updateOrder = async (req, res) => {
      session.endSession();
      return res
        .status(400)
-       .json({ message: "GST Rate required if there is GSTIN." });
+       .json({ message: "GST Rate required if there is GST number." });
    }
 
       if (gstRate < 0 || gstRate > 100) {
