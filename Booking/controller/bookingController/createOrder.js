@@ -3,7 +3,7 @@ const Order = require("../../models/orderModel");
 const Customer = require("../../models/customerModel");
 const Product = require("../../models/productModel");
 const checkAndNotifyStock = require("../notification Controller/checkAndNotifyStock");
-
+const validateDiscountType = ["percentage", "flat"];
 
 const createOrder = async (req, res) => {
  const session = await mongoose.startSession();
@@ -20,10 +20,11 @@ const createOrder = async (req, res) => {
      amount,
      gstRate,
      gstNumber,
-     discountAmount
+     discountAmount,
+     discountType
    } = req.body;
 
-
+  console.log(discountAmount,"discpuntAMount");
    if (
      !products ||
      !Array.isArray(products) ||
@@ -52,15 +53,12 @@ const createOrder = async (req, res) => {
      return res.status(400).json({ message: "Discount amount must be positive." });
    }
 
-
-   if (gstRate < 0 || gstRate > 100) {
-     await session.abortTransaction();
-     session.endSession();
-     return res
-       .status(400)
-       .json({ message: "GST Rate must be between 0-100 %." });
-   }
-
+     if (!validateDiscountType.includes(discountType)) {
+      return res.status(400).json({
+        message:
+          'Invalid discount type. Must be one of: "flat" or "percentage"',
+      });
+    }
 
    if (phoneNumberPrimary < 1000000000 || phoneNumberPrimary > 9999999999) {
      await session.abortTransaction();
@@ -81,6 +79,14 @@ const createOrder = async (req, res) => {
        .json({ message: "Invalid secondary phone number." });
    }
 
+   if (!validateDiscountType.includes(discountType)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        message:
+          'Invalid discount type. Must be one of: "flat" or "percentage"',
+      });
+    }
 
    if(gstNumber && gstNumber.trim() !== "" && gstNumber.length !== 15){
      await session.abortTransaction();
@@ -90,6 +96,21 @@ const createOrder = async (req, res) => {
        .json({ message: "GST number must be a valid 15-digit number" });
    }
 
+   if (gstNumber && gstNumber.trim() !== "" && (!gstRate || gstRate === 0)) {
+     await session.abortTransaction();
+     session.endSession();
+     return res
+       .status(400)
+       .json({ message: "GST Rate required if there is GSTIN." });
+   }
+
+      if (gstRate < 0 || gstRate > 100) {
+     await session.abortTransaction();
+     session.endSession();
+     return res
+       .status(400)
+       .json({ message: "GST Rate must be between 0-100 %." });
+   }
 
    // Capitalize helper
    const capitalizeName = (name) => {
@@ -196,7 +217,8 @@ const createOrder = async (req, res) => {
      organizationId: req.decoded.ordId,
      invoiceNumber,
      gstRate,
-     discountAmount
+     discountAmount,
+     discountType
    });
 
 

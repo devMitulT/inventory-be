@@ -47,6 +47,12 @@ const orderSchema = mongoose.Schema(
      default: 0,
      min: [0, "Discount amount cannot be negative"],
    },
+   discountType: {
+      type: String,
+      enum: ["flat", "percentage"],
+      required: [true, "Discount type is required"],
+      default:"flat"
+    },
    organizationId: {
      type: mongoose.Schema.Types.ObjectId,
      ref: "Organization",
