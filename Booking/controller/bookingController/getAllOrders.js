@@ -76,6 +76,8 @@ const getAllOrders = async (req, res) => {
           amount: { $first: "$amount" },
           organizationId: { $first: "$organizationId" },
           invoiceNumber: { $first: "$invoiceNumber" },
+          discountAmount : {$first: "$discountAmount"},
+          discountType : {$first: "$discountType"},
           createdAt: { $first: "$createdAt" },
           updatedAt: { $first: "$updatedAt" },
           __v: { $first: "$__v" },

@@ -3,12 +3,12 @@ const Order = require("../../models/orderModel");
 const Customer = require("../../models/customerModel");
 const Product = require("../../models/productModel");
 const checkAndNotifyStock = require("../notification Controller/checkAndNotifyStock");
+const validateDiscountType = ["percentage", "flat"];
 
 
 const updateOrder = async (req, res) => {
  const session = await mongoose.startSession();
  session.startTransaction();
-
 
  try {
    const orderId = req.params.bid;
@@ -21,7 +21,8 @@ const updateOrder = async (req, res) => {
      phoneNumberSecondary,
      gstRate,
      gstNumber,
-     discountAmount
+     discountAmount,
+     discountType
    } = req.body;
    if (
      !products ||
@@ -35,16 +36,6 @@ const updateOrder = async (req, res) => {
      session.endSession();
      return res.status(400).json({ message: "Missing or invalid fields." });
    }
-
-
-   if (gstRate < 0 || gstRate > 100) {
-     await session.abortTransaction();
-     session.endSession();
-     return res
-       .status(400)
-       .json({ message: "GST Rate must be between 0-100 %." });
-   }
-
 
    if (phoneNumberPrimary < 1000000000 || phoneNumberPrimary > 9999999999) {
      await session.abortTransaction();
@@ -73,12 +64,37 @@ const updateOrder = async (req, res) => {
        .status(400)
        .json({ message: "GST number must be a valid 15-digit number" });
    }
-  
+
+   if (gstNumber && gstNumber.trim() !== "" && (!gstRate || gstRate === 0)) {
+     await session.abortTransaction();
+     session.endSession();
+     return res
+       .status(400)
+       .json({ message: "GST Rate required if there is GSTIN." });
+   }
+
+      if (gstRate < 0 || gstRate > 100) {
+     await session.abortTransaction();
+     session.endSession();
+     return res
+       .status(400)
+       .json({ message: "GST Rate must be between 0-100 %." });
+   }
+
    if (discountAmount < 0) {
      await session.abortTransaction();
      session.endSession();
      return res.status(400).json({ message: "Discount amount must be positive." });
    }
+
+     if (!validateDiscountType.includes(discountType)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        message:
+          'Invalid discount type. Must be one of: "flat" or "percentage"',
+      });
+    }
 
 
    const capitalizeName = (name) => {
@@ -90,6 +106,9 @@ const updateOrder = async (req, res) => {
        .join(" ");
    };
 
+   data = await Order.findById(orderId)
+
+   const isProductChange = data.products !== products
 
    const order = await Order.findOne({
      _id: orderId,
@@ -143,7 +162,7 @@ const updateOrder = async (req, res) => {
      if (product) {
        product.stock += item.unit;
        await product.save({ session });
-       await checkAndNotifyStock(product, session);
+       isProductChange && await checkAndNotifyStock(product, session);
      }
    }
 
@@ -192,7 +211,7 @@ const updateOrder = async (req, res) => {
      } else {
        product.stock -= unit;
        await product.save({ session });
-       await checkAndNotifyStock(product, session);
+       isProductChange && await checkAndNotifyStock(product, session);
      }
    }
 
@@ -228,7 +247,8 @@ const updateOrder = async (req, res) => {
        notes,
        amount,
        gstRate,
-       discountAmount
+       discountAmount,
+       discountType
      },
      { session, new: true }
    );

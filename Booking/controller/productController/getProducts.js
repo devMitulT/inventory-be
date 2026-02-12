@@ -8,12 +8,12 @@ const getProducts = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-    const isDeleted = req.query.isDeleted || false;
+    const isDeleted = req.query.isDeleted;
 
     const matchStage = {
       $match: {
         organizationId: new mongoose.Types.ObjectId(organizationId),
-        isDeleted: isDeleted == 1 ? true : false,
+        isDeleted: isDeleted ? true : false,
       },
     };
 
