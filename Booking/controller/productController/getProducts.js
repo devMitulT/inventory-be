@@ -14,6 +14,7 @@ const getProducts = async (req, res) => {
       $match: {
         organizationId: new mongoose.Types.ObjectId(organizationId),
         isDeleted: isDeleted ? true : false,
+        ...(sku && { sku: { $regex: sku, $options: "i" } }),
       },
     };
 
