@@ -5,6 +5,7 @@ const {
   createOrganization,
 } = require("../controller/organizationController/createOrganization");
 const { protectRoute } = require("../middlewares/protectRoute");
+const { requireRole } = require("../middlewares/requireRole");
 const {
   getOrganizationInfo,
 } = require("../controller/organizationController/getOrganizationInfo");
@@ -34,6 +35,7 @@ router.get("/organization", protectRoute, getOrganizationInfo);
 router.put(
   "/organization/:id",
   protectRoute,
+  requireRole(["superAdmin"]),
   upload.single("image"),
   editOrganization
 );

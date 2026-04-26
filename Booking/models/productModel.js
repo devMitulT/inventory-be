@@ -44,11 +44,19 @@ const productSchema = mongoose.Schema(
      required: [true, "Stock is required"],
      min: [0, "Stock must be a positive number"],
      default: 0,
+     validate: {
+       validator: Number.isInteger,
+       message: "Stock must be a vallid integer number",
+     },
    },
    thresholdStock: {
      type: Number,
      required: [true, "Threshold stock is required"],
-     default:0
+     default:0,
+     validate: {
+       validator: Number.isInteger,
+       message: "Threshold stock must be a valid integer number",
+     },
    },
    measurementType: {
    type: String,

@@ -42,13 +42,22 @@ const updateProduct = async (req, res) => {
    }
 
 
-   if (!["meter", "piece"].includes(measurementType)) {
-     return res.status(400).json({ message: "Invalid measurement type" });
+   if (measurementType !== "piece") {
+     return res.status(400).json({
+       message: 'Only "piece" measurement type is supported',
+     });
    }
 
 
-   if (measurementType === "meter" && !colour) {
-     return res.status(400).json({ message: "Colour is required for meter products" });
+   if (!Number.isInteger(Number(stock))) {
+     return res.status(400).json({ message: "Stock must be a valid integer number" });
+   }
+
+
+   if (!Number.isInteger(Number(thresholdStock))) {
+     return res
+       .status(400)
+       .json({ message: "Threshold stock must be a valid integer number" });
    }
 
 

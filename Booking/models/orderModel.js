@@ -15,6 +15,10 @@ const orderSchema = mongoose.Schema(
          type: Number,
          required: [true, "Price is required"],
          min: [0, "Price cannot be negative"],
+         validate: {
+           validator: Number.isInteger,
+           message: "Unit must be a valid integer number",
+         },
        },
        perUnitCost: {
          type: Number,
@@ -65,6 +69,11 @@ const orderSchema = mongoose.Schema(
    gstRate: {
      type: Number,
      default: 0,
+   },
+   billedBy: {
+     type: String,
+     required: [true, "Billed by is required"],
+     trim: true,
    },
  },
  {
