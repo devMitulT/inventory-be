@@ -31,19 +31,19 @@ router.put('/me', protectRoute, updateMyProfile);
 router.get(
   '/user',
   protectRoute,
-  requireRole(['superAdmin']),
+  requireRole(['superAdmin', 'admin']),
   getUsers
 );
 router.post(
   '/user',
   protectRoute,
-  requireRole(['superAdmin']),
+  requireRole(['superAdmin', 'admin']),
   createUser
 );
 router.patch(
   '/user/:id/active',
   protectRoute,
-  requireRole(['superAdmin']),
+  requireRole(['superAdmin', 'admin']),
   toggleUserActive
 );
 
