@@ -73,15 +73,7 @@ const updateOrder = async (req, res) => {
        .json({ message: "Customer GST number must be a valid 15-digit number" });
    }
 
-   if (gstNumber && gstNumber.trim() !== "" && (!gstRate || gstRate === 0)) {
-     await session.abortTransaction();
-     session.endSession();
-     return res
-       .status(400)
-       .json({ message: "GST Rate required if there is GST number." });
-   }
-
-      if (gstRate < 0 || gstRate > 100) {
+   if (gstRate != null && (gstRate < 0 || gstRate > 100)) {
      await session.abortTransaction();
      session.endSession();
      return res
@@ -192,6 +184,15 @@ const updateOrder = async (req, res) => {
      }
 
 
+     if (!Number.isInteger(Number(unit))) {
+       await session.abortTransaction();
+       session.endSession();
+       return res.status(400).json({
+         message: "Unit must be a valid integer number.",
+       });
+     }
+
+
      const product = await Product.findOne({
        _id: productId,
        isDeleted: false,
@@ -234,29 +235,44 @@ const updateOrder = async (req, res) => {
    }
 
 
-   // Step 3: Update customer
-   await Customer.findByIdAndUpdate(
-     order.customer,
-     {
-       customerName: capitalizeName(customerName),
-       phoneNumberPrimary,
-       phoneNumberSecondary,
-       gstNumber
-     },
-     { session }
-   );
+   // Step 3: Resolve the target customer by phone (find-or-update pattern).
+   // If a customer with the given phone already exists (same one or different),
+   // update its mutable fields and link the order to it. Otherwise update the
+   // current customer's phone in place.
+   let targetCustomer = await Customer.findOne({
+     phoneNumberPrimary,
+   }).session(session);
+
+   if (targetCustomer) {
+     targetCustomer.customerName = capitalizeName(customerName);
+     targetCustomer.phoneNumberSecondary = phoneNumberSecondary;
+     targetCustomer.gstNumber = gstNumber;
+     await targetCustomer.save({ session });
+   } else {
+     targetCustomer = await Customer.findByIdAndUpdate(
+       order.customer,
+       {
+         customerName: capitalizeName(customerName),
+         phoneNumberPrimary,
+         phoneNumberSecondary,
+         gstNumber,
+       },
+       { session, new: true, runValidators: true }
+     );
+   }
 
 
-   // Step 4: Update order
+   // Step 4: Update order (re-link customer if it changed)
    const updatedOrder = await Order.findByIdAndUpdate(
      orderId,
      {
        products,
        notes,
        amount,
-       gstRate,
+       gstRate: gstRate ?? 0,
        discountAmount,
-       discountType
+       discountType,
+       customer: targetCustomer._id,
      },
      { session, new: true }
    );

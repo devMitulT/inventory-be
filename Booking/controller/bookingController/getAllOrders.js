@@ -3,7 +3,7 @@ const Order = require("../../models/orderModel");
 
 const getAllOrders = async (req, res) => {
   try {
-    const { page = 1, limit = 10, fromDate, toDate } = req.query;
+    const { page = 1, limit = 10, fromDate, toDate, billedBy } = req.query;
     const pageNumber = parseInt(page, 10);
     const pageSize = parseInt(limit, 10);
     const skip = (pageNumber - 1) * pageSize;
@@ -20,6 +20,10 @@ const getAllOrders = async (req, res) => {
       const endDate = new Date(toDate);
       endDate.setHours(23, 59, 59, 999);
       matchStage.createdAt = { $gte: startDate, $lte: endDate };
+    }
+
+    if (billedBy && billedBy.trim() !== "") {
+      matchStage.billedBy = billedBy;
     }
 
     const aggregationPipeline = [
@@ -78,6 +82,7 @@ const getAllOrders = async (req, res) => {
           invoiceNumber: { $first: "$invoiceNumber" },
           discountAmount : {$first: "$discountAmount"},
           discountType : {$first: "$discountType"},
+          billedBy: { $first: "$billedBy" },
           createdAt: { $first: "$createdAt" },
           updatedAt: { $first: "$updatedAt" },
           __v: { $first: "$__v" },

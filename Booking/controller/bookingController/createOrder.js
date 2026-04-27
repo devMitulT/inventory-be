@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Order = require("../../models/orderModel");
 const Customer = require("../../models/customerModel");
 const Product = require("../../models/productModel");
+const User = require("../../models/userModel");
 const checkAndNotifyStock = require("../notification Controller/checkAndNotifyStock");
 const validateDiscountType = ["percentage", "flat"];
 
@@ -31,8 +32,7 @@ const createOrder = async (req, res) => {
      products.length === 0 ||
      !customerName ||
      !phoneNumberPrimary ||
-     amount == null ||
-     gstRate == null
+     amount == null
    ) {
      await session.abortTransaction();
      session.endSession();
@@ -104,15 +104,7 @@ const createOrder = async (req, res) => {
        .json({ message: "Customer GST number must be a valid 15-digit number" });
    }
 
-   if (gstNumber && gstNumber.trim() !== "" && (!gstRate || gstRate === 0)) {
-     await session.abortTransaction();
-     session.endSession();
-     return res
-       .status(400)
-       .json({ message: "GST Rate required if there is Customer GST number." });
-   }
-
-      if (gstRate < 0 || gstRate > 100) {
+   if (gstRate != null && (gstRate < 0 || gstRate > 100)) {
      await session.abortTransaction();
      session.endSession();
      return res
@@ -159,6 +151,16 @@ const createOrder = async (req, res) => {
    const invoiceNumber = lastBooking ? lastBooking.invoiceNumber + 1 : 1;
 
 
+   const billingUser = await User.findById(req.decoded.userId)
+     .select("name")
+     .session(session);
+   if (!billingUser) {
+     await session.abortTransaction();
+     session.endSession();
+     return res.status(401).json({ message: "Logged-in user not found." });
+   }
+
+
    // Stock check and update
    const stockConflicts = [];
 
@@ -172,6 +174,15 @@ const createOrder = async (req, res) => {
        session.endSession();
        return res.status(400).json({
          message: "Each product must have productId, unit, and perUnitCost.",
+       });
+     }
+
+
+     if (!Number.isInteger(Number(unit))) {
+       await session.abortTransaction();
+       session.endSession();
+       return res.status(400).json({
+         message: "Unit must be a valid intger number.",
        });
      }
 
@@ -224,9 +235,10 @@ const createOrder = async (req, res) => {
      amount,
      organizationId: req.decoded.ordId,
      invoiceNumber,
-     gstRate,
+     gstRate: gstRate ?? 0,
      discountAmount,
-     discountType
+     discountType,
+     billedBy: billingUser.name,
    });
 
 

@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const Organization = require('../models/OrganizationModel');
+const User = require('../models/userModel');
 
 const protectRoute = async (req, res, next) => {
   try {
@@ -33,6 +34,12 @@ const protectRoute = async (req, res, next) => {
       });
     }
 
+    const user = await User.findById(decoded.userId).select('role isActive');
+    if (!user || !user.isActive) {
+      return res.status(401).json({ message: 'User not found or inactive.' });
+    }
+
+    decoded.role = user.role;
     req.decoded = decoded;
     next();
   } catch (error) {
