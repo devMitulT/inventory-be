@@ -152,6 +152,7 @@ const createOrganization = async (req, res) => {
       name: ownerName,
       email,
       password: hashedPassword,
+      role: "admin",
       organizationId: newOrganization._id,
     });
 
