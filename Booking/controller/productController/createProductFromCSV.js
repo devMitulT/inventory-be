@@ -63,7 +63,6 @@ const createProductFromCSV = async (req, res) => {
 
        if (
          !name ||
-         !description ||
          !perUnitCost ||
          !sku ||
          !stock
@@ -77,7 +76,7 @@ const createProductFromCSV = async (req, res) => {
        }
 
 
-       if (!isValidDescription(description)) {
+       if (description && description.length > 1000) {
          throw new Error("Invalid description length");
        }
 

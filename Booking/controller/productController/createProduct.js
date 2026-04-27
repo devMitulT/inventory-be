@@ -30,7 +30,6 @@ const createProduct = async (req, res) => {
    } = req.body;
    if (
      !name ||
-     !description ||
      !perUnitCost ||
      !sku ||
      !stock ||
@@ -80,7 +79,7 @@ const createProduct = async (req, res) => {
    }
 
 
-   if (!isValidDescription(description)) {
+   if (description && description.length > 1000) {
      return res.status(400).json({ message: "Invalid description length" });
    }
 
