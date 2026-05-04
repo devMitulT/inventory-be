@@ -4,6 +4,7 @@ const Customer = require("../../models/customerModel");
 const Product = require("../../models/productModel");
 const checkAndNotifyStock = require("../notification Controller/checkAndNotifyStock");
 const validateDiscountType = ["percentage", "flat"];
+const ALLOWED_GENDER_TYPES = ["men", "women"];
 
 
 const updateOrder = async (req, res) => {
@@ -23,7 +24,8 @@ const updateOrder = async (req, res) => {
      gstNumber,
      discountAmount,
      discountType,
-     businessGstNumber
+     businessGstNumber,
+     genderType,
    } = req.body;
    if (
      !products ||
@@ -96,6 +98,17 @@ const updateOrder = async (req, res) => {
       });
     }
 
+   let genderTypeNorm = null;
+   if (genderType != null && String(genderType).trim() !== "") {
+     genderTypeNorm = String(genderType).trim().toLowerCase();
+     if (!ALLOWED_GENDER_TYPES.includes(genderTypeNorm)) {
+       await session.abortTransaction();
+       session.endSession();
+       return res.status(400).json({
+         message: `genderType must be one of: ${ALLOWED_GENDER_TYPES.join(", ")}.`,
+       });
+     }
+   }
 
    const capitalizeName = (name) => {
      return name
@@ -263,17 +276,22 @@ const updateOrder = async (req, res) => {
 
 
    // Step 4: Update order (re-link customer if it changed)
+   const updatePayload = {
+     products,
+     notes,
+     amount,
+     gstRate: gstRate ?? 0,
+     discountAmount,
+     discountType,
+     customer: targetCustomer._id,
+   };
+   if (genderTypeNorm) {
+     updatePayload.genderType = genderTypeNorm;
+   }
+
    const updatedOrder = await Order.findByIdAndUpdate(
      orderId,
-     {
-       products,
-       notes,
-       amount,
-       gstRate: gstRate ?? 0,
-       discountAmount,
-       discountType,
-       customer: targetCustomer._id,
-     },
+     updatePayload,
      { session, new: true }
    );
 

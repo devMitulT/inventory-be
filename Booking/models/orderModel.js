@@ -75,6 +75,10 @@ const orderSchema = mongoose.Schema(
      required: [true, "Billed by is required"],
      trim: true,
    },
+   genderType: {
+     type: String,
+     enum: ["men", "women"],
+   },
  },
  {
    timestamps: true,

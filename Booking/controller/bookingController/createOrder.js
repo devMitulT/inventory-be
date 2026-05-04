@@ -5,6 +5,7 @@ const Product = require("../../models/productModel");
 const User = require("../../models/userModel");
 const checkAndNotifyStock = require("../notification Controller/checkAndNotifyStock");
 const validateDiscountType = ["percentage", "flat"];
+const ALLOWED_GENDER_TYPES = ["men", "women"];
 
 const createOrder = async (req, res) => {
  const session = await mongoose.startSession();
@@ -23,8 +24,22 @@ const createOrder = async (req, res) => {
      gstNumber,
      discountAmount,
      discountType,
-     businessGstNumber
+     businessGstNumber,
+     genderType,
    } = req.body;
+
+   const genderTypeNorm =
+     genderType != null && String(genderType).trim() !== ""
+       ? String(genderType).trim().toLowerCase()
+       : null;
+
+   if (!genderTypeNorm || !ALLOWED_GENDER_TYPES.includes(genderTypeNorm)) {
+     await session.abortTransaction();
+     session.endSession();
+     return res.status(400).json({
+       message: `genderType is required and must be one of: ${ALLOWED_GENDER_TYPES.join(", ")}.`,
+     });
+   }
 
    if (
      !products ||
@@ -239,6 +254,7 @@ const createOrder = async (req, res) => {
      discountAmount,
      discountType,
      billedBy: billingUser.name,
+     genderType: genderTypeNorm,
    });
 
 
