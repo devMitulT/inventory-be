@@ -1,9 +1,18 @@
 const { default: mongoose } = require("mongoose");
 const Order = require("../../models/orderModel");
 
+const ALLOWED_GENDER_TYPES = ["men", "women"];
+
 const getAllOrders = async (req, res) => {
   try {
-    const { page = 1, limit = 10, fromDate, toDate, billedBy } = req.query;
+    const {
+      page = 1,
+      limit = 10,
+      fromDate,
+      toDate,
+      billedBy,
+      genderType: genderTypeRaw,
+    } = req.query;
     const pageNumber = parseInt(page, 10);
     const pageSize = parseInt(limit, 10);
     const skip = (pageNumber - 1) * pageSize;
@@ -24,6 +33,16 @@ const getAllOrders = async (req, res) => {
 
     if (billedBy && billedBy.trim() !== "") {
       matchStage.billedBy = billedBy;
+    }
+
+    if (genderTypeRaw != null && String(genderTypeRaw).trim() !== "") {
+      const genderType = String(genderTypeRaw).trim().toLowerCase();
+      if (!ALLOWED_GENDER_TYPES.includes(genderType)) {
+        return res.status(400).json({
+          message: `genderType must be one of: ${ALLOWED_GENDER_TYPES.join(", ")}.`,
+        });
+      }
+      matchStage.genderType = genderType;
     }
 
     const aggregationPipeline = [
@@ -83,6 +102,7 @@ const getAllOrders = async (req, res) => {
           discountAmount : {$first: "$discountAmount"},
           discountType : {$first: "$discountType"},
           billedBy: { $first: "$billedBy" },
+          genderType: { $first: "$genderType" },
           createdAt: { $first: "$createdAt" },
           updatedAt: { $first: "$updatedAt" },
           __v: { $first: "$__v" },

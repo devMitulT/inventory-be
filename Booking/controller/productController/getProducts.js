@@ -1,6 +1,8 @@
 const { default: mongoose } = require("mongoose");
 const Product = require("../../models/productModel");
 
+const ALLOWED_GENDERS = ["men", "women"];
+
 const getProducts = async (req, res) => {
   try {
     const organizationId = req.decoded.ordId;
@@ -10,12 +12,25 @@ const getProducts = async (req, res) => {
     const sku = req.query.sku 
     const skip = (page - 1) * limit;
     const isDeleted = req.query.isDeleted;
+    const genderRaw = req.query.gender;
+
+    const gender =
+      genderRaw != null && String(genderRaw).trim() !== ""
+        ? String(genderRaw).trim().toLowerCase()
+        : null;
+    if (gender && !ALLOWED_GENDERS.includes(gender)) {
+      return res.status(400).json({
+        message: `gender must be one of: ${ALLOWED_GENDERS.join(", ")}.`,
+        allowedGenders: ALLOWED_GENDERS,
+      });
+    }
 
     const matchStage = {
       $match: {
         organizationId: new mongoose.Types.ObjectId(organizationId),
         isDeleted: isDeleted ? true : false,
         ...(sku && { sku: { $regex: sku, $options: "i" } }),
+        ...(gender && { gender }),
       },
     };
 
