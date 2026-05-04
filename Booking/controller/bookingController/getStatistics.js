@@ -3,9 +3,49 @@ const Order = require("../../models/orderModel");
 
 const ALLOWED_GENDERS = ["men", "women"];
 
+/** @returns {string|null} */
+function normalizeGenderQuery(gender) {
+  if (gender === undefined || gender === null) return null;
+  const s = String(gender).trim().toLowerCase();
+  return s || null;
+}
+
+function buildOrdersAndRevenuePipeline(matchStage) {
+  return [
+    { $match: matchStage },
+    {
+      $group: {
+        _id: null,
+        totalRevenue: { $sum: "$amount" },
+        totalOrders: { $sum: 1 },
+      },
+    },
+    { $project: { _id: 0, totalRevenue: 1, totalOrders: 1 } },
+  ];
+}
+
+function buildTotalProductSellPipeline(matchStage) {
+  return [
+    { $match: matchStage },
+    { $unwind: "$products" },
+    {
+      $group: {
+        _id: null,
+        totalProductSell: { $sum: "$products.unit" },
+      },
+    },
+    { $project: { _id: 0, totalProductSell: 1 } },
+  ];
+}
+
 const getStatistics = async (req, res) => {
   try {
-    const { startDate, endDate, gender } = req.query;
+    const {
+      startDate,
+      endDate,
+      genderType: genderTypeRaw,
+      billedBy: billedByRaw,
+    } = req.query;
 
     if (!startDate || !endDate) {
       return res
@@ -29,10 +69,12 @@ const getStatistics = async (req, res) => {
     start.setHours(0, 0, 0, 0);
     end.setHours(23, 59, 59, 999);
 
-    if (gender && !ALLOWED_GENDERS.includes(gender)) {
-      return res
-        .status(400)
-        .json({ message: "gender must be either 'men' or 'women'." });
+    const genderType = normalizeGenderQuery(genderTypeRaw);
+    if (genderType && !ALLOWED_GENDERS.includes(genderType)) {
+      return res.status(400).json({
+        message: `genderType must be one of: ${ALLOWED_GENDERS.join(", ")}.`,
+        allowedGenderTypes: ALLOWED_GENDERS,
+      });
     }
 
     const matchStage = {
@@ -40,81 +82,38 @@ const getStatistics = async (req, res) => {
       isDeleted: false,
       createdAt: { $gte: start, $lte: end },
     };
+    if (genderType) {
+      matchStage.genderType = genderType;
+    }
+    if (billedByRaw != null && String(billedByRaw).trim() !== "") {
+      matchStage.billedBy = String(billedByRaw).trim();
+    }
 
-    const lineItemPipeline = [
-      { $match: matchStage },
-      { $unwind: "$products" },
-      {
-        $lookup: {
-          from: "products",
-          localField: "products.productId",
-          foreignField: "_id",
-          as: "productInfo",
-        },
-      },
-      { $unwind: "$productInfo" },
-      ...(gender ? [{ $match: { "productInfo.gender": gender } }] : []),
-      {
-        $group: {
-          _id: null,
-          grossRevenue: {
-            $sum: {
-              $multiply: ["$products.unit", "$products.perUnitCost"],
-            },
-          },
-          totalUnitsSold: { $sum: "$products.unit" },
-          orderIds: { $addToSet: "$_id" },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          grossRevenue: 1,
-          totalUnitsSold: 1,
-          totalOrders: { $size: "$orderIds" },
-        },
-      },
-    ];
-
-    const orderTotalsPipeline = [
-      { $match: matchStage },
-      {
-        $group: {
-          _id: null,
-          totalNetRevenue: { $sum: "$amount" },
-          totalOrders: { $sum: 1 },
-        },
-      },
-      { $project: { _id: 0, totalNetRevenue: 1, totalOrders: 1 } },
-    ];
-
-    const [lineItemResult, orderTotalsResult] = await Promise.all([
-      Order.aggregate(lineItemPipeline),
-      gender ? Promise.resolve([]) : Order.aggregate(orderTotalsPipeline),
+    const [ordersAndRevenueResult, totalProductSellResult] = await Promise.all([
+      Order.aggregate(buildOrdersAndRevenuePipeline(matchStage)),
+      Order.aggregate(buildTotalProductSellPipeline(matchStage)),
     ]);
 
-    const lineItemStats = lineItemResult[0] || {
-      grossRevenue: 0,
-      totalUnitsSold: 0,
+    const ordersAndRevenue = ordersAndRevenueResult[0] || {
       totalOrders: 0,
+      totalRevenue: 0,
     };
+    const productSell = totalProductSellResult[0] || { totalProductSell: 0 };
 
     const response = {
       dateRange: { startDate: start, endDate: end },
-      filter: { gender: gender || null },
-      grossRevenue: lineItemStats.grossRevenue,
-      totalUnitsSold: lineItemStats.totalUnitsSold,
-      totalOrders: lineItemStats.totalOrders,
+      filter: {
+        genderType,
+        billedBy:
+          billedByRaw != null && String(billedByRaw).trim() !== ""
+            ? String(billedByRaw).trim()
+            : null,
+        allowedGenderTypes: ALLOWED_GENDERS,
+      },
+      totalOrders: ordersAndRevenue.totalOrders,
+      totalRevenue: ordersAndRevenue.totalRevenue,
+      totalProductSell: productSell.totalProductSell,
     };
-
-    if (!gender) {
-      const orderTotals = orderTotalsResult[0] || {
-        totalNetRevenue: 0,
-        totalOrders: 0,
-      };
-      response.totalNetRevenue = orderTotals.totalNetRevenue;
-      response.totalOrders = orderTotals.totalOrders;
-    }
 
     return res.status(200).json({
       message: "Statistics fetched successfully",
