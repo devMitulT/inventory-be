@@ -27,13 +27,6 @@ const protectRoute = async (req, res, next) => {
       return res.status(401).json({ message: 'Organization not found.' });
     }
 
-    const currentDate = new Date();
-    if (organization.activeTill < currentDate) {
-      return res.status(403).json({
-        message: 'Organization subscription expired. Please renew to continue.',
-      });
-    }
-
     const user = await User.findById(decoded.userId).select('role isActive');
     if (!user || !user.isActive) {
       return res.status(401).json({ message: 'User not found or inactive.' });

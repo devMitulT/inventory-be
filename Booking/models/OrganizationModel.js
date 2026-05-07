@@ -60,10 +60,6 @@ const organizationSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    activeTill: {
-      type: Date,
-      required: [true, "Till date is required"],
-    },
     gstNumber: {
       type: String,
       required: [true, "GST number is required"],

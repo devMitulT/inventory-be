@@ -80,6 +80,27 @@ const productSchema = mongoose.Schema(
    },
  },
 
+ category: {
+   type: String,
+   required: function () {
+     return this.measurementType === "piece";
+   },
+   validate: {
+     validator: function (value) {
+       if (this.measurementType !== "piece") return true;
+
+       const menCategories = ["Blazer", "Sherwani", "Shirt", "Pant"];
+       const womenCategories = ["Chaniya-Choli", "Gown", "Overcoat"];
+
+       if (this.gender === "men") return menCategories.includes(value);
+       if (this.gender === "women") return womenCategories.includes(value);
+
+       return false;
+     },
+     message: "Invalid category for selected gender",
+   },
+ },
+
 
  size: {
    type: String,
@@ -110,6 +131,10 @@ const productSchema = mongoose.Schema(
      message:
        "Invalid size for selected gender",
    },
+ },
+ images: {
+   type: [String],
+   default: [],
  },
    organizationId: {
      type: mongoose.Schema.Types.ObjectId,

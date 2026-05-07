@@ -21,7 +21,7 @@ const getProduct = async (req, res) => {
     }
 
     res.status(200).json({ message: 'Product For given ID', data: product });
-  } catch (error) {x
+  } catch (error) {
     res
       .status(500)
       .json({ message: 'Internal Server Error', error: error.message });

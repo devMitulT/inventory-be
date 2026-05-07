@@ -12,22 +12,28 @@ function asNumberOrNull(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-const getProducts = async (req, res) => {
+const getOpenProducts = async (req, res) => {
   try {
-    const organizationId = req.decoded.ordId;
+    const { orgId } = req.params;
+    const {
+      page = 1,
+      limit = 50,
+      sku,
+      name,
+      gender: genderRaw,
+      category: categoryRaw,
+      measurementType: measurementTypeRaw,
+      size: sizeRaw,
+      minPrice: minPriceRaw,
+      maxPrice: maxPriceRaw,
+    } = req.query;
+    if (!orgId || !mongoose.Types.ObjectId.isValid(orgId)) {
+      return res.status(400).json({ message: "Valid orgId is required." });
+    }
 
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const sku = req.query.sku;
-    const name = req.query.name;
-    const skip = (page - 1) * limit;
-    const isDeleted = req.query.isDeleted;
-    const genderRaw = req.query.gender;
-    const categoryRaw = req.query.category;
-    const measurementTypeRaw = req.query.measurementType;
-    const sizeRaw = req.query.size;
-    const minPriceRaw = req.query.minPrice ?? req.query.minPerUnitCost;
-    const maxPriceRaw = req.query.maxPrice ?? req.query.maxPerUnitCost;
+    const pageNumber = parseInt(page, 10);
+    const pageSize = parseInt(limit, 10);
+    const skip = (pageNumber - 1) * pageSize;
 
     const gender =
       genderRaw != null && String(genderRaw).trim() !== ""
@@ -99,53 +105,48 @@ const getProducts = async (req, res) => {
           }
         : null;
 
-    const matchStage = {
-      $match: {
-        organizationId: new mongoose.Types.ObjectId(organizationId),
-        isDeleted: isDeleted ? true : false,
-        ...(sku && { sku: { $regex: sku, $options: "i" } }),
-        ...(name && { name: { $regex: name, $options: "i" } }),
-        ...(gender && { gender }),
-        ...(category && { category }),
-        ...(measurementType && { measurementType }),
-        ...(size && { size }),
-        ...(perUnitCostFilter && { perUnitCost: perUnitCostFilter }),
-      },
+    const baseFilter = {
+      organizationId: orgId,
+      isDeleted: false,
+      ...(sku ? { sku: { $regex: sku, $options: "i" } } : {}),
+      ...(name ? { name: { $regex: name, $options: "i" } } : {}),
+      ...(gender ? { gender } : {}),
+      ...(category ? { category } : {}),
+      ...(measurementType ? { measurementType } : {}),
+      ...(size ? { size } : {}),
+      ...(perUnitCostFilter ? { perUnitCost: perUnitCostFilter } : {}),
     };
 
-    const facetStage = {
-      $facet: {
-        data: [
-          { $sort: { createdAt: -1 } },
-          { $skip: skip },
-          { $limit: limit },
-        ],
-        totalCount: [{ $count: "count" }],
-      },
-    };
+    const [data, count] = await Promise.all([
+      Product.find({
+        ...baseFilter,
+      })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+      Product.countDocuments({
+        ...baseFilter,
+      }),
+    ]);
 
-    const result = await Product.aggregate([matchStage, facetStage]);
-    const products = result[0].data;
-    const total = result[0].totalCount[0]?.count || 0;
-    const totalPages = Math.ceil(total / limit);
-
-    res.status(200).json({
-      message: "Products fetched successfully",
-      data: products,
+    return res.status(200).json({
+      message: "Open products fetched successfully",
+      data,
       pagination: {
-        total,
-        page,
-        limit,
-        totalPages,
+        total: count,
+        page: pageNumber,
+        limit: pageSize,
+        totalPages: Math.ceil(count / pageSize),
       },
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      message: "Server error",
+    return res.status(500).json({
+      message: "Internal Server Error",
       error: error.message,
     });
   }
 };
 
-module.exports = { getProducts };
+module.exports = { getOpenProducts };
+

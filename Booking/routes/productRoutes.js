@@ -9,6 +9,12 @@ const {
 const { getProducts } = require("../controller/productController/getProducts");
 const { getProduct } = require("../controller/productController/getProduct");
 const {
+  getOpenProducts,
+} = require("../controller/productController/getOpenProducts");
+const {
+  getOpenProductById,
+} = require("../controller/productController/getOpenProductById");
+const {
   updateProduct,
 } = require("../controller/productController/updateProduct");
 const {
@@ -51,11 +57,13 @@ const uploadCSV = multer({
   },
 });
 
-router.post("/product", protectRoute, upload.none(), createProduct);
-router.put("/product/:id", protectRoute, updateProduct);
+router.post("/product", protectRoute, upload.array("images", 10), createProduct);
+router.put("/product/:id", protectRoute, upload.array("images", 10), updateProduct);
 router.delete("/product/:id", protectRoute, deleteProduct);
 router.get("/product", protectRoute, getProducts);
 router.get("/product/:id", protectRoute, getProduct);
+router.get("/open-products/:orgId", getOpenProducts);
+router.get("/open-products/:orgId/:id", getOpenProductById);
 router.put("/restore-product/:id", protectRoute, restoreProduct);
 router.post(
   "/product-from-csv",
