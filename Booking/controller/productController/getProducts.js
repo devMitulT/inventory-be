@@ -12,6 +12,15 @@ function asNumberOrNull(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+function parseMultiParam(raw) {
+  if (raw == null) return [];
+  const values = Array.isArray(raw) ? raw : [raw];
+  return values
+    .flatMap((v) => String(v).split(","))
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 const getProducts = async (req, res) => {
   try {
     const organizationId = req.decoded.ordId;
@@ -40,28 +49,34 @@ const getProducts = async (req, res) => {
       });
     }
 
-    let category = null;
-    if (categoryRaw != null && String(categoryRaw).trim() !== "") {
-      const allCategories = [...MEN_CATEGORIES, ...WOMEN_CATEGORIES];
-      const match = allCategories.find(
-        (c) => c.toLowerCase() === String(categoryRaw).trim().toLowerCase()
-      );
-      if (!match) {
+    const allCategories = [...MEN_CATEGORIES, ...WOMEN_CATEGORIES];
+    const categoryValuesRaw = parseMultiParam(categoryRaw);
+    const categories = categoryValuesRaw.length
+      ? categoryValuesRaw.map((raw) => {
+          const match = allCategories.find(
+            (c) => c.toLowerCase() === raw.toLowerCase()
+          );
+          if (!match) {
+            return null;
+          }
+          return match;
+        })
+      : [];
+    if (categoryValuesRaw.length && categories.some((c) => c === null)) {
+      return res.status(400).json({
+        message: `category must be one of: ${allCategories.join(", ")}.`,
+        allowedCategories: allCategories,
+      });
+    }
+    if (gender && categories.length) {
+      const allowedCategories = gender === "men" ? MEN_CATEGORIES : WOMEN_CATEGORIES;
+      const invalid = categories.find((c) => !allowedCategories.includes(c));
+      if (invalid) {
         return res.status(400).json({
-          message: `category must be one of: ${allCategories.join(", ")}.`,
-          allowedCategories: allCategories,
+          message: `Invalid category '${invalid}' for ${gender}`,
+          allowedCategories,
         });
       }
-      if (gender) {
-        const allowedCategories = gender === "men" ? MEN_CATEGORIES : WOMEN_CATEGORIES;
-        if (!allowedCategories.includes(match)) {
-          return res.status(400).json({
-            message: `Invalid category '${match}' for ${gender}`,
-            allowedCategories,
-          });
-        }
-      }
-      category = match;
     }
 
     const measurementType =
@@ -77,10 +92,7 @@ const getProducts = async (req, res) => {
       });
     }
 
-    const size =
-      sizeRaw != null && String(sizeRaw).trim() !== ""
-        ? String(sizeRaw).trim().toUpperCase()
-        : null;
+    const sizes = parseMultiParam(sizeRaw).map((s) => s.toUpperCase());
 
     const minPrice = asNumberOrNull(minPriceRaw);
     const maxPrice = asNumberOrNull(maxPriceRaw);
@@ -106,9 +118,9 @@ const getProducts = async (req, res) => {
         ...(sku && { sku: { $regex: sku, $options: "i" } }),
         ...(name && { name: { $regex: name, $options: "i" } }),
         ...(gender && { gender }),
-        ...(category && { category }),
+        ...(categories.length ? { category: { $in: categories } } : {}),
         ...(measurementType && { measurementType }),
-        ...(size && { size }),
+        ...(sizes.length ? { size: { $in: sizes } } : {}),
         ...(perUnitCostFilter && { perUnitCost: perUnitCostFilter }),
       },
     };
