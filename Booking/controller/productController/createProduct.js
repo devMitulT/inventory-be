@@ -1,17 +1,17 @@
 const Product = require("../../models/productModel");
+const { PutObjectCommand } = require("@aws-sdk/client-s3");
+const { v4: uuidv4 } = require("uuid");
+const { s3Config } = require("../../../utils/awsS3Config");
 
 
 const isValidSKU = (sku) => /^[A-Z0-9\-_]{3,40}$/.test(sku);
 const isValidName = (name) => /^[\w\s\-(),.&']{3,100}$/.test(name);
-const isValidDescription = (desc) => desc.length >= 10 && desc.length <= 1000;
 
 
 const MEN_SIZES = ["32", "34", "36", "38", "40", "42", "44"];
 const WOMEN_SIZES = ["FREE", "XS", "S", "M", "L", "XL", "XXL"];
-
-
-const capitalize = (val) =>
- val.charAt(0).toUpperCase() + val.slice(1).toLowerCase();
+const MEN_CATEGORIES = ["Blazer", "Sherwani", "Shirt", "Pant"];
+const WOMEN_CATEGORIES = ["Chaniya-Choli", "Gown", "Overcoat"];
 
 
 const createProduct = async (req, res) => {
@@ -24,9 +24,9 @@ const createProduct = async (req, res) => {
      stock,
      thresholdStock,
      measurementType,
-     colour = [],
      size = [],
      gender,
+     category,
    } = req.body;
    if (
      !name ||
@@ -65,6 +65,20 @@ const createProduct = async (req, res) => {
    if (measurementType === "piece") {
      if (!gender || !["men", "women"].includes(gender)) {
        return res.status(400).json({ message: "Gender is required for piece type" });
+     }
+
+     if (!category) {
+       return res.status(400).json({ message: "Category is required for piece type" });
+     }
+     const allowedCategories = gender === "men" ? MEN_CATEGORIES : WOMEN_CATEGORIES;
+     const categoryNorm = allowedCategories.find(
+       (c) => c.toLowerCase() === String(category).trim().toLowerCase()
+     );
+     if (!categoryNorm) {
+       return res.status(400).json({
+         message: `Invalid category '${category}' for ${gender}`,
+         allowedCategories,
+       });
      }
 
 
@@ -117,17 +131,50 @@ const createProduct = async (req, res) => {
 
    const createdProducts = [];
 
+   const files = Array.isArray(req.files) ? req.files : [];
+   const uploadedImageUrls = [];
+   if (files.length > 0) {
+     if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+       return res.status(500).json({
+         message: "Server error",
+         error:
+           "Missing AWS credentials. Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.",
+       });
+     }
+     if (!process.env.S3_BUCKET_NAME_PRODUCT_IMAGES) {
+       return res.status(500).json({
+         message: "Server error",
+         error:
+           "Missing env S3_BUCKET_NAME_PRODUCT_IMAGES for product image upload.",
+       });
+     }
+     if (!process.env.CLOUD_FRONT_URL_PRODUCT_IMAGES) {
+       return res.status(500).json({
+         message: "Server error",
+         error:
+           "Missing env CLOUD_FRONT_URL_PRODUCT_IMAGES for product image upload.",
+       });
+     }
+     for (const file of files) {
+       const fileName = uuidv4();
+       const params = {
+        Bucket: process.env.S3_BUCKET_NAME_PRODUCT_IMAGES,
+        Key: fileName,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      };
+       await s3Config.send(new PutObjectCommand(params));
+       uploadedImageUrls.push(
+         `${process.env.CLOUD_FRONT_URL_PRODUCT_IMAGES}/${fileName}`
+       );
+     }
+   }
 
-   const variants =
-     measurementType === "meter"
-       ? colour.map((c) => ({
-           colour: capitalize(c),
-           skuSuffix: capitalize(c),
-         }))
-       : size.map((s) => ({
-           size: s.toUpperCase(),
-           skuSuffix: s.toUpperCase(),
-         }));
+
+   const variants = size.map((s) => ({
+     size: s.toUpperCase(),
+     skuSuffix: s.toUpperCase(),
+   }));
 
 
    for (const variant of variants) {
@@ -156,8 +203,14 @@ const createProduct = async (req, res) => {
        thresholdStock,
        measurementType,
        gender: measurementType === "piece" ? gender : undefined,
-       colour: variant.colour,
+       category:
+         measurementType === "piece"
+           ? (gender === "men" ? MEN_CATEGORIES : WOMEN_CATEGORIES).find(
+               (c) => c.toLowerCase() === String(category).trim().toLowerCase()
+             )
+           : undefined,
        size: variant.size,
+       images: uploadedImageUrls,
        organizationId: req.decoded.ordId,
      });
 

@@ -10,6 +10,8 @@ const isValidDescription = (desc) => desc.length >= 10 && desc.length <= 1000;
 
 const MEN_SIZES = ["32", "34", "36", "38", "40", "42", "44"];
 const WOMEN_SIZES = ["FREE", "XS", "S", "M", "L", "XL", "XXL"];
+const MEN_CATEGORIES = ["Blazer", "Sherwani", "Shirt", "Pant"];
+const WOMEN_CATEGORIES = ["Chaniya-Choli", "Gown", "Overcoat"];
 
 
 const createProductFromCSV = async (req, res) => {
@@ -58,6 +60,7 @@ const createProductFromCSV = async (req, res) => {
          colour,
          size,
          gender,
+         category,
        } = row;
 
 
@@ -107,6 +110,17 @@ const createProductFromCSV = async (req, res) => {
        if (measurementType === "piece") {
          if (!gender || !["men", "women"].includes(gender)) {
            throw new Error("Gender must be men or women for piece products");
+         }
+
+         if (!category) {
+           throw new Error("Category is required for piece products");
+         }
+         const allowedCategories = gender === "men" ? MEN_CATEGORIES : WOMEN_CATEGORIES;
+         const categoryNorm = allowedCategories.find(
+           (c) => c.toLowerCase() === String(category).trim().toLowerCase()
+         );
+         if (!categoryNorm) {
+           throw new Error(`Invalid category '${category}' for ${gender}`);
          }
 
 
@@ -169,6 +183,12 @@ const createProductFromCSV = async (req, res) => {
            colour: measurementType === "meter" ? v.colour : undefined,
            size: measurementType === "piece" ? v.size : undefined,
            gender: measurementType === "piece" ? gender : undefined,
+           category:
+             measurementType === "piece"
+               ? (gender === "men" ? MEN_CATEGORIES : WOMEN_CATEGORIES).find(
+                   (c) => c.toLowerCase() === String(category).trim().toLowerCase()
+                 )
+               : undefined,
            organizationId: req.decoded.ordId,
          });
 

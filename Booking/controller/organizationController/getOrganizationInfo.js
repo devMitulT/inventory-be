@@ -16,14 +16,6 @@ const getOrganizationInfo = async (req, res) => {
       });
     }
 
-    // Check if organization subscription is still valid
-    if (new Date(organization.activeTill) < new Date()) {
-      return res.status(403).json({
-        success: false,
-        message: "Organization subscription has expired",
-      });
-    }
-
     res.status(200).json({
       success: true,
       message: "Organization information retrieved successfully",

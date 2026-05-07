@@ -130,9 +130,6 @@ const createOrganization = async (req, res) => {
     const salt = await bcrypt.genSalt(+process.env.SALT_GEN_KEY);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const tillDate = new Date();
-    tillDate.setFullYear(tillDate.getFullYear() + 1);
-
     const newOrganization = new Organization({
       organizationName,
       ownerName,
@@ -141,7 +138,6 @@ const createOrganization = async (req, res) => {
       contactNumber,
       address,
       logo: logoUrl,
-      activeTill: tillDate,
       billingRules,
       gstNumber,
     });
